@@ -84,3 +84,55 @@ h3 { color: #1e3a8a; font-size: 1.1em; margin-bottom: 10px; }
 .btn-primary { background-color: #1e3a8a; color: white; }
 .btn-secondary { background-color: #cbd5e1; color: #333; }
 #formNuevoProducto { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; margin-top: 10px; }
+/* Contenedor de la lista de administración */
+#listaAdminProductos {
+    margin-top: 15px;
+    max-height: 300px;
+    overflow-y: auto; /* Si hay muchos productos, aparece un scroll interno limpio */
+}
+
+/* Alineación de los botones de acción */
+.acciones-producto {
+    display: flex;
+    gap: 8px; /* Espacio exacto entre el botón de editar y borrar */
+}
+
+/* Estilo base para AMBOS botones */
+.btn-accion {
+    padding: 6px 12px;
+    font-size: 0.85em;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    margin-left: 20px;
+}
+
+/* Pequeño efecto de pulsación al hacer clic */
+.btn-accion:active {
+    transform: scale(0.96);
+}
+
+/* Diseño exclusivo del Botón de EDITAR (Amarillo/Mostaza elegante) */
+.btn-editar {
+    background-color: #f59e0b;
+    color: white;
+}
+
+.btn-editar:hover {
+    background-color: #d97706; /* Se oscurece al pasar el ratón */
+}
+
+/* Diseño exclusivo del Botón de ELIMINAR (Rojo coral profesional) */
+.btn-eliminar {
+    background-color: #ef4444;
+    color: white;
+}
+
+.btn-eliminar:hover {
+    background-color: #dc2626; /* Se oscurece al pasar el ratón */
+}

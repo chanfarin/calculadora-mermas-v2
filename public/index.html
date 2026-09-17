@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cálculo de Materia Prima y Cajas</title>
+    <title>Control de Producción y Mermas - Fábrica</title>
     <link rel="stylesheet" href="index.css">
-    <script src="index.js"></script>
+    <!-- Forzamos al navegador a leer la última versión del script -->
+    <script src="index.js?v=11"></script>
 </head>
 <body>
 
 <div class="container">
-    <h2>Control de Proceso, Materia Prima y Cajas</h2>
+    <h2>Control de Proceso, Materia Prima y Envases</h2>
     
-    <!-- Sección de Cálculo Diario -->
     <label for="producto">Selecciona el Producto:</label>
     <select id="producto"></select>
 
     <div class="info-mermas">
-        <strong>Ficha de mermas estimada:</strong>
+        <strong>Ficha técnica y mermas estimadas:</strong>
         <ul>
             <li>Peso neto por bandeja: <span id="lblPeso">0</span> kg</li>
             <li>Pérdida por congelación (Nitrógeno): <span id="lblCongelacion">0</span>%</li>
@@ -26,41 +26,59 @@
         </ul>
     </div>
 
-    <label for="bandejas">Número de bandejas a producir:</label>
-    <input type="number" id="bandejas" placeholder="Introduce la cantidad" min="0">
+    <!-- 👇 NUEVO: Selector para elegir el modo de cálculo -->
+    <label for="modoCalculo">¿Cómo quieres introducir la producción?</label>
+    <select id="modoCalculo" style="margin-bottom: 15px; font-weight: bold; background-color: #f8fafc;">
+        <option value="porKilos">Por Kilos Totales del Pedido</option>
+        <option value="porBandejas">Por Cantidad de Bandejas a Rellenar</option>
+    </select>
+
+    <!-- Este input cambiará dinámicamente de texto explicativo según el modo -->
+    <label id="lblInputDinamico" for="valorProduccion">Kilos netos del pedido del cliente:</label>
+    <input type="number" id="valorProduccion" placeholder="Introduce el valor" min="0.1" step="0.1">
 
     <label for="pesoCaja">Capacidad de cada caja (en kg de producto):</label>
     <input type="number" id="pesoCaja" placeholder="Ej. 6" min="0.1" step="0.1" value="6">
 
-    <div class="resultado-box" id="resultadoTotal">Necesitas: 0.00 kg iniciales</div>
-    <div class="resultado-box cajas-box" id="resultadoCajas">Cajas necesarias: 0</div>
-    <div class="detalle-calculo" id="detalle">Materia prima bruta requerida antes de mermas.</div>
+    <!-- Bloques de resultados -->
+    <div class="resultado-box" id="resultadoTotal">Materia prima necesaria: 0.00 kg iniciales</div>
+    <div class="resultado-box cajas-box" id="resultadoCajas">Cajas de embalaje necesarias: 0</div>
+    <div class="resultado-box bandejas-box" id="resultadoBandejasVacias">Bandejas necesarias para el lote: 0</div>
+    
+    <div class="detalle-calculo" id="detalle">Materia prima bruta requerida antes de entrar a la línea de proceso.</div>
 
-    <!-- Panel Dinámico: Añadir Nuevos Productos -->
+    <!-- Panel de Administración -->
     <div class="admin-panel">
-        <button type="button" id="btnToggleAdmin" class="btn-secondary">⚙️ Gestionar Productos</button>
+        <button type="button" id="btnToggleAdmin" class="btn-secondary">⚙️ Gestionar Productos de la Fábrica</button>
         
         <div id="formNuevoProducto" class="hidden">
-            <h3>Añadir Nuevo Producto</h3>
+            <h3>Añadir / Editar Producto</h3>
+            
             <label for="nuevoNombre">Nombre del producto:</label>
-            <input type="text" id="nuevoNombre" placeholder="Ej. Rodaballo">
+            <input type="text" id="nuevoNombre" placeholder="Ej. Pechugas Pavo">
 
-            <label for="nuevoPesoBandeja">Peso neto por bandeja (kg):</label>
-            <input type="number" id="nuevoPesoBandeja" placeholder="Ej. 1.2" step="0.01">
+            <label for="nuevoPesoBandeja">Peso neto por bandeja terminada (kg):</label>
+            <input type="number" id="nuevoPesoBandeja" placeholder="Ej. 1.5" step="0.01">
 
             <label for="nuevaMermaNitrogeno">Merma Nitrógeno (%):</label>
             <input type="number" id="nuevaMermaNitrogeno" placeholder="Ej. 3" step="0.1">
 
             <label for="nuevaMermaFileteado">Merma Fileteadora (%):</label>
-            <input type="number" id="nuevaMermaFileteado" placeholder="Ej. 10" step="0.1">
+            <input type="number" id="nuevaMermaFileteado" placeholder="Ej. 12" step="0.1">
 
             <label for="nuevoDesechoFijo">Desecho manual fijo (kg por lote):</label>
-            <input type="number" id="nuevoDesechoFijo" placeholder="Ej. 1" step="0.1">
+            <input type="number" id="nuevoDesechoFijo" placeholder="Ej. 2" step="0.1">
 
             <label for="nuevoPesoCajaDefecto">Peso de caja por defecto (kg):</label>
             <input type="number" id="nuevoPesoCajaDefecto" placeholder="Ej. 6" step="0.1">
 
+            <label for="nuevoTipoBandeja">Modelo / Número de bandeja específica:</label>
+            <input type="text" id="nuevoTipoBandeja" placeholder="Ej. Tipo 4 (30x20)">
+
             <button type="button" id="btnGuardarProducto" class="btn-primary">Guardar Producto</button>
+            
+            <h3 style="margin-top: 25px; border-top: 1px solid #cbd5e1; padding-top: 15px; font-size: 1em;">Artículos en la Base de Datos</h3>
+            <div id="listaAdminProductos"></div>
         </div>
     </div>
 </div>

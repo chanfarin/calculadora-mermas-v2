@@ -1,4 +1,3 @@
-// 1. PRODUCTOS DE MUESTRA (Solo si tu base de datos MongoDB está totalmente vacía)
 const productosPredeterminados = {
   pescado_A: {
     nombre: "Merluza / Bacalao (Muestra)",
@@ -7,6 +6,7 @@ const productosPredeterminados = {
     mermaFileteado: 12,
     desechoFijoKg: 2.0,
     pesoCaja: 6,
+    tipoBandeja: "Modelo 4",
   },
   pescado_B: {
     nombre: "Salmón (Muestra)",
@@ -15,188 +15,324 @@ const productosPredeterminados = {
     mermaFileteado: 18,
     desechoFijoKg: 1.5,
     pesoCaja: 10,
+    tipoBandeja: "Modelo 2",
   },
 };
 
-let productos = {};
+let listaProductosGlobal = {};
+let idProductoEnEdicion = null;
 
-window.onload = async function () {
-  // 2. CAPTURA DE ELEMENTOS DEL DOM
-  const selectProducto = document.getElementById("producto");
-  const inputBandejas = document.getElementById("bandejas");
-  const inputPesoCaja = document.getElementById("pesoCaja");
-
-  const lblPeso = document.getElementById("lblPeso");
-  const lblCongelacion = document.getElementById("lblCongelacion");
-  const lblFileteado = document.getElementById("lblFileteado");
-  const lblDesecho = document.getElementById("lblDesecho");
-
-  const resultadoTotal = document.getElementById("resultadoTotal");
-  const resultadoCajas = document.getElementById("resultadoCajas");
-  const detalleCalculo = document.getElementById("detalle");
-
-  const btnToggleAdmin = document.getElementById("btnToggleAdmin");
-  const formNuevoProducto = document.getElementById("formNuevoProducto");
-  const btnGuardarProducto = document.getElementById("btnGuardarProducto");
-
-  // 3. DESCARGAR PRODUCTOS DEL SERVIDOR NODE.JS
-  async function sincronizarProductos() {
-    try {
-      const respuesta = await fetch("/api/productos");
-      const documentos = await respuesta.json();
-
-      if (documentos && documentos.length > 0) {
-        productos = {};
-        documentos.forEach((doc) => {
-          productos[doc.id_producto] = {
-            nombre: doc.nombre,
-            pesoBandeja: doc.pesoBandeja,
-            mermaNitrogeno: doc.mermaNitrogeno,
-            mermaFileteado: doc.mermaFileteado,
-            desechoFijoKg: doc.desechoFijoKg,
-            pesoCaja: doc.pesoCaja,
-          };
-        });
-      } else {
-        productos = productosPredeterminados;
-      }
-
-      actualizarSelect();
-      cargarDatosProducto();
-    } catch (error) {
-      console.error("Error al conectar con Node.js:", error);
-      alert("No se pudieron cargar los productos desde el servidor.");
-    }
-  }
-
-  function actualizarSelect() {
-    selectProducto.innerHTML = "";
-    for (const id in productos) {
-      const option = document.createElement("option");
-      option.value = id;
-      option.textContent = productos[id].nombre;
-      selectProducto.appendChild(option);
-    }
-  }
-
-  function cargarDatosProducto() {
-    const prodId = selectProducto.value;
-    const p = productos[prodId];
-    if (p) {
-      lblPeso.innerText = p.pesoBandeja;
-      lblCongelacion.innerText = p.mermaNitrogeno;
-      lblFileteado.innerText = p.mermaFileteado;
-      lblDesecho.innerText = p.desechoFijoKg;
-      inputPesoCaja.value = p.pesoCaja || 6;
-    }
-  }
-
-  // 4. LÓGICA DE CÁLCULO
-  function calcular() {
-    const prodId = selectProducto.value;
-    const p = productos[prodId];
-    if (!p) return;
-
-    const bandejas = parseInt(inputBandejas.value) || 0;
-    const pesoPorCaja = parseFloat(inputPesoCaja.value) || 0;
-
-    if (bandejas <= 0) {
-      resultadoTotal.innerText = "Necesitas: 0.00 kg iniciales";
-      resultadoCajas.innerText = "Cajas necesarias: 0";
-      return;
-    }
-
-    const pesoNetoTotal = bandejas * p.pesoBandeja;
-    let pesoRequerido = pesoNetoTotal + p.desechoFijoKg;
-
-    const factorFileteado = (100 - p.mermaFileteado) / 100;
-    pesoRequerido = pesoRequerido / factorFileteado;
-
-    const factorNitrogeno = (100 - p.mermaNitrogeno) / 100;
-    const materiaPrimaInicial = pesoRequerido / factorNitrogeno;
-
-    let totalCajas =
-      pesoPorCaja > 0 ? Math.ceil(pesoNetoTotal / pesoPorCaja) : 0;
-
-    resultadoTotal.innerText = `Necesitas: ${materiaPrimaInicial.toFixed(2)} kg`;
-    resultadoCajas.innerText = `Cajas necesarias: ${totalCajas}`;
-    detalleCalculo.innerText = `Bandejas: ${pesoNetoTotal.toFixed(1)}kg totales terminados. | Mermas: ${(materiaPrimaInicial - pesoNetoTotal).toFixed(2)}kg`;
-  }
-
-  // 5. EVENTOS
-  btnToggleAdmin.addEventListener("click", function () {
-    formNuevoProducto.classList.toggle("hidden");
-  });
-
-  btnGuardarProducto.addEventListener("click", async function () {
-    const nombre = document.getElementById("nuevoNombre").value.trim();
-    const pesoBandeja = parseFloat(
-      document.getElementById("nuevoPesoBandeja").value,
-    );
-    const mermaNitrogeno =
-      parseFloat(document.getElementById("nuevaMermaNitrogeno").value) || 0;
-    const mermaFileteado =
-      parseFloat(document.getElementById("nuevaMermaFileteado").value) || 0;
-    const desechoFijoKg =
-      parseFloat(document.getElementById("nuevoDesechoFijo").value) || 0;
-    const pesoCaja =
-      parseFloat(document.getElementById("nuevoPesoCajaDefecto").value) || 6;
-
-    if (!nombre || isNaN(pesoBandeja)) {
-      alert("Por favor, introduce al menos el nombre y el peso de la bandeja.");
-      return;
-    }
-
-    const id_producto = "prod_" + nombre.toLowerCase().replace(/\s+/g, "_");
-    const nuevoDoc = {
-      id_producto,
-      nombre,
-      pesoBandeja,
-      mermaNitrogeno,
-      mermaFileteado,
-      desechoFijoKg,
-      pesoCaja,
-    };
-
-    btnGuardarProducto.innerText = "Guardando en MongoDB...";
-    btnGuardarProducto.disabled = true;
-
-    try {
-      await fetch("/api/productos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nuevoDoc),
-      });
-
-      await sincronizarProductos();
-      selectProducto.value = id_producto;
-      cargarDatosProducto();
-      calcular();
-
-      // Limpiar formulario
-      document.getElementById("nuevoNombre").value = "";
-      document.getElementById("nuevoPesoBandeja").value = "";
-      document.getElementById("nuevaMermaNitrogeno").value = "";
-      document.getElementById("nuevaMermaFileteado").value = "";
-      document.getElementById("nuevoDesechoFijo").value = "";
-      formNuevoProducto.classList.add("hidden");
-    } catch (error) {
-      console.error("Error al guardar:", error);
-      alert("Error al intentar guardar el producto.");
-    } finally {
-      btnGuardarProducto.innerText = "Guardar Producto";
-      btnGuardarProducto.disabled = false;
-    }
-  });
-
-  selectProducto.addEventListener("change", function () {
+window.onload = function () {
+  document.getElementById("producto").addEventListener("change", function () {
     cargarDatosProducto();
     calcular();
   });
 
-  inputBandejas.addEventListener("input", calcular);
-  inputPesoCaja.addEventListener("input", calcular);
+  // Escuchamos el cambio de modo para alterar las etiquetas visuales
+  document
+    .getElementById("modoCalculo")
+    .addEventListener("change", manejarCambioModo);
 
-  // Inicializar carga
-  await sincronizarProductos();
+  document
+    .getElementById("valorProduccion")
+    .addEventListener("input", calcular);
+  document.getElementById("pesoCaja").addEventListener("input", calcular);
+
+  document
+    .getElementById("btnToggleAdmin")
+    .addEventListener("click", function () {
+      document.getElementById("formNuevoProducto").classList.toggle("hidden");
+    });
+
+  document
+    .getElementById("btnGuardarProducto")
+    .addEventListener("click", manejarGuardado);
+
+  sincronizarProductos();
 };
+
+function manejarCambioModo() {
+  const modo = document.getElementById("modoCalculo").value;
+  const label = document.getElementById("lblInputDinamico");
+  const input = document.getElementById("valorProduccion");
+
+  if (modo === "porKilos") {
+    label.innerText = "Kilos netos del pedido del cliente:";
+    input.placeholder = "Introduce los kilos totales";
+  } else {
+    label.innerText = "Cantidad de bandejas físicas a producir:";
+    input.placeholder = "Introduce el número de bandejas";
+  }
+  input.value = "";
+  calcular();
+}
+
+async function sincronizarProductos() {
+  try {
+    const respuesta = await fetch("/api/productos");
+    if (!respuesta.ok) throw new Error("Error del servidor");
+    const documentos = await respuesta.json();
+
+    if (documentos && documentos.length > 0) {
+      listaProductosGlobal = {};
+      documentos.forEach((doc) => {
+        listaProductosGlobal[doc.id_producto] = {
+          nombre: doc.nombre,
+          pesoBandeja: doc.pesoBandeja,
+          mermaNitrogeno: doc.mermaNitrogeno,
+          mermaFileteado: doc.mermaFileteado,
+          desechoFijoKg: doc.desechoFijoKg,
+          pesoCaja: doc.pesoCaja,
+          tipoBandeja: doc.tipoBandeja || "Estándar",
+        };
+      });
+    } else {
+      listaProductosGlobal = productosPredeterminados;
+    }
+  } catch (error) {
+    console.error("Error sincronizando:", error);
+    listaProductosGlobal = productosPredeterminados;
+  }
+
+  actualizarSelect();
+  cargarDatosProducto();
+  renderizarListaAdmin();
+}
+
+function actualizarSelect() {
+  const select = document.getElementById("producto");
+  select.innerHTML = "";
+  for (const id in listaProductosGlobal) {
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = listaProductosGlobal[id].nombre;
+    select.appendChild(option);
+  }
+}
+
+function cargarDatosProducto() {
+  const idSeleccionado = document.getElementById("producto").value;
+  const p = listaProductosGlobal[idSeleccionado];
+  if (p) {
+    document.getElementById("lblPeso").innerText = p.pesoBandeja;
+    document.getElementById("lblCongelacion").innerText = p.mermaNitrogeno;
+    document.getElementById("lblFileteado").innerText = p.mermaFileteado;
+    document.getElementById("lblDesecho").innerText = p.desechoFijoKg;
+    document.getElementById("pesoCaja").value = p.pesoCaja || 6;
+  }
+}
+
+function calcular() {
+  const idSeleccionado = document.getElementById("producto").value;
+  const p = listaProductosGlobal[idSeleccionado];
+  if (!p) return;
+
+  const modo = document.getElementById("modoCalculo").value;
+  const valorInput =
+    parseFloat(document.getElementById("valorProduccion").value) || 0;
+  const pesoPorCaja =
+    parseFloat(document.getElementById("pesoCaja").value) || 0;
+
+  if (valorInput <= 0) {
+    document.getElementById("resultadoTotal").innerText =
+      "Materia prima necesaria: 0.00 kg iniciales";
+    document.getElementById("resultadoCajas").innerText =
+      "Cajas de embalaje necesarias: 0";
+    document.getElementById("resultadoBandejasVacias").innerText =
+      "Bandejas necesarias para el lote: 0";
+    document.getElementById("detalle").innerText =
+      "Introduce un valor para calcular.";
+    return;
+  }
+
+  let kilosTotalesPedido = 0;
+  let totalBandejas = 0;
+
+  // SELECCIÓN INTELIGENTE DE FÓRMULA MATEMÁTICA
+  if (modo === "porKilos") {
+    // Modo anterior: El usuario introduce Kilos, deducimos las bandejas
+    kilosTotalesPedido = valorInput;
+    totalBandejas = Math.ceil(kilosTotalesPedido / (p.pesoBandeja || 1));
+  } else {
+    // Nuevo modo: El usuario introduce Bandejas, deducimos los Kilos netos resultantes
+    totalBandejas = Math.ceil(valorInput);
+    kilosTotalesPedido = totalBandejas * (p.pesoBandeja || 1);
+  }
+
+  // A partir de aquí la física de mermas corre igual para ambos porque ya tenemos los Kilos Netos
+  const totalCajas =
+    pesoPorCaja > 0 ? Math.ceil(kilosTotalesPedido / pesoPorCaja) : 0;
+
+  let pesoRequerido = kilosTotalesPedido + p.desechoFijoKg;
+  pesoRequerido = pesoRequerido / ((100 - p.mermaFileteado) / 100);
+  const materiaPrimaInicial = pesoRequerido / ((100 - p.mermaNitrogeno) / 100);
+
+  // Pintar resultados unificados en la pantalla
+  document.getElementById("resultadoTotal").innerText =
+    `Materia prima necesaria: ${materiaPrimaInicial.toFixed(2)} kg iniciales`;
+  document.getElementById("resultadoCajas").innerText =
+    `Cajas de embalaje necesarias: ${totalCajas}`;
+  document.getElementById("resultadoBandejasVacias").innerText =
+    `Bandejas necesarias para el lote: ${totalBandejas} unidades (${p.tipoBandeja})`;
+
+  document.getElementById("detalle").innerText =
+    `Pedido estimado: ${kilosTotalesPedido.toFixed(1)}kg netos terminados. | Línea de producción: ${totalBandejas} bandejas. | Mermas totales: ${(materiaPrimaInicial - kilosTotalesPedido).toFixed(2)}kg`;
+}
+
+function renderizarListaAdmin() {
+  const contenedorLista = document.getElementById("listaAdminProductos");
+  if (!contenedorLista) return;
+  contenedorLista.innerHTML = "";
+
+  for (const id in listaProductosGlobal) {
+    if (id === "pescado_A" || id === "pescado_B") continue;
+
+    const item = document.createElement("div");
+    item.style.display = "flex";
+    item.style.justify = "space-between";
+    item.style.alignItems = "center";
+    item.style.padding = "8px";
+    item.style.borderBottom = "1px solid #e2e8f0";
+
+    item.innerHTML = `
+            <span><strong>${listaProductosGlobal[id].nombre}</strong> (Bandeja: ${listaProductosGlobal[id].pesoBandeja} kg | Molde: ${listaProductosGlobal[id].tipoBandeja})</span>
+            <div class="acciones-producto">
+                <button class="btn-accion btn-editar" data-id="${id}">✏️ Editar</button>
+                <button class="btn-accion btn-eliminar" data-id="${id}">❌ Borrar</button>
+            </div>
+        `;
+    contenedorLista.appendChild(item);
+  }
+
+  contenedorLista.querySelectorAll(".btn-editar").forEach((btn) => {
+    btn.addEventListener("click", function (e) {
+      prepararEdicion(e.currentTarget.getAttribute("data-id"));
+    });
+  });
+
+  contenedorLista.querySelectorAll(".btn-eliminar").forEach((btn) => {
+    btn.addEventListener("click", function (e) {
+      eliminarProducto(e.currentTarget.getAttribute("data-id"));
+    });
+  });
+}
+
+function prepararEdicion(id) {
+  const p = listaProductosGlobal[id];
+  if (!p) return;
+
+  idProductoEnEdicion = id;
+  document.getElementById("nuevoNombre").value = p.nombre;
+  document.getElementById("nuevoPesoBandeja").value = p.pesoBandeja;
+  document.getElementById("nuevaMermaNitrogeno").value = p.mermaNitrogeno;
+  document.getElementById("nuevaMermaFileteado").value = p.mermaFileteado;
+  document.getElementById("nuevoDesechoFijo").value = p.desechoFijoKg;
+  document.getElementById("nuevoPesoCajaDefecto").value = p.pesoCaja;
+  document.getElementById("nuevoTipoBandeja").value = p.tipoBandeja;
+
+  const btn = document.getElementById("btnGuardarProducto");
+  btn.innerText = "Actualizar Cambios del Artículo";
+  btn.style.background = "#eab308";
+  document.getElementById("nuevoNombre").focus();
+}
+
+async function eliminarProducto(id) {
+  if (
+    !confirm(
+      `¿Seguro que quieres eliminar "${listaProductosGlobal[id].nombre}" definitivamente?`,
+    )
+  )
+    return;
+  try {
+    const respuesta = await fetch(`/api/productos/${id}`, { method: "DELETE" });
+    if (!respuesta.ok) throw new Error("Fallo");
+    await sincronizarProductos();
+    calcular();
+  } catch (error) {
+    alert("Error al intentar eliminar.");
+  }
+}
+
+async function manejarGuardado() {
+  const btn = document.getElementById("btnGuardarProducto");
+  const nombreInput = document.getElementById("nuevoNombre");
+  const pesoBandejaInput = document.getElementById("nuevoPesoBandeja");
+  const mermaNitrogenoInput = document.getElementById("nuevaMermaNitrogeno");
+  const mermaFileteadoInput = document.getElementById("nuevaMermaFileteado");
+  const desechoFijoInput = document.getElementById("nuevoDesechoFijo");
+  const pesoCajaInput = document.getElementById("nuevoPesoCajaDefecto");
+  const tipoBandejaInput = document.getElementById("nuevoTipoBandeja");
+
+  const nombre = nombreInput.value.trim();
+  const pesoBandeja = parseFloat(pesoBandejaInput.value);
+  const mermaNitrogeno = parseFloat(mermaNitrogenoInput.value) || 0;
+  const mermaFileteado = parseFloat(mermaFileteadoInput.value) || 0;
+  const desechoFijoKg = parseFloat(desechoFijoInput.value) || 0;
+  const pesoCaja = parseFloat(pesoCajaInput.value) || 6;
+  const tipoBandeja = tipoBandejaInput.value.trim() || "Estándar";
+  if (!nombre || isNaN(pesoBandeja)) {
+    alert("Introduce elnombre y el peso dela bandeja.");
+    return;
+  }
+
+  btn.disabled = true;
+
+  try {
+    if (idProductoEnEdicion) {
+      btn.innerText = "Actualizando...";
+      await fetch(`/api/productos/${idProductoEnEdicion}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          nombre,
+          pesoBandeja,
+          mermaNitrogeno,
+          mermaFileteado,
+          desechoFijoKg,
+          pesoCaja,
+          tipoBandeja,
+        }),
+      });
+      const idGuardado = idProductoEnEdicion;
+      idProductoEnEdicion = null;
+      await sincronizarProductos();
+      document.getElementById("producto").value = idGuardado;
+    } else {
+      btn.innerText = "Guardando...";
+      const id_producto = "prod_" + nombre.toLowerCase().replace(/\s+/g, "_");
+      await fetch("api/productos", {
+        method: POST,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringigy({
+          id_producto,
+          nombre,
+          pesoBandeja,
+          mermaNitrogeno,
+          mermaFileteado,
+          desechoFijoKg,
+          pesoCaja,
+          tipoBandeja,
+        }),
+      });
+
+      await sincronizarProductos();
+      document.getElemlentById("producto").value = id_producto;
+    }
+    cargarDatosProducto();
+    calcular();
+    nombreInput.value = "";
+    pesoBandejaInput.value = "";
+    mermaNitrogenoInput.value = "";
+    desechoFijoInput.value = "";
+    pesoCajaInput.value = "";
+    tipoBandejaInput.value = "";
+
+    btn.innerText = "Guardar Producto";
+    btn.style.background = "1#e38a";
+    document.getElementById("formNuevoProducto").classList.add("hiden");
+  } catch (error) {
+    alert("Error al procesar:" + error.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
