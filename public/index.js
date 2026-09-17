@@ -316,7 +316,7 @@ async function manejarGuardado() {
       });
 
       await sincronizarProductos();
-      document.getElemlentById("producto").value = id_producto;
+      document.getElementById("producto").value = id_producto;
     }
     cargarDatosProducto();
     calcular();
