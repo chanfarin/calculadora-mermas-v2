@@ -301,7 +301,7 @@ async function manejarGuardado() {
       btn.innerText = "Guardando...";
       const id_producto = "prod_" + nombre.toLowerCase().replace(/\s+/g, "_");
       await fetch("api/productos", {
-        method: POST,
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringigy({
           id_producto,
