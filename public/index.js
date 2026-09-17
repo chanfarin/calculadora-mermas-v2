@@ -303,7 +303,7 @@ async function manejarGuardado() {
       await fetch("api/productos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringigy({
+        body: JSON.stringify({
           id_producto,
           nombre,
           pesoBandeja,
