@@ -5,49 +5,88 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Producción y Mermas - Fábrica</title>
     <link rel="stylesheet" href="index.css">
-    <!-- Forzamos al navegador a leer la última versión del script -->
-    <script src="index.js?v=11"></script>
+    <script src=https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js></script>
+    <!-- Forzamos la actualización de caché en el navegador -->
+    <script src="index.js?v=41" type="module"></script>
 </head>
 <body>
 
 <div class="container">
     <h2>Control de Proceso, Materia Prima y Envases</h2>
     
-    <label for="producto">Selecciona el Producto:</label>
-    <select id="producto"></select>
+    <!-- SECCIÓN 1: CALCULADORA RÁPIDA DE LOTE INDIVIDUAL -->
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+        <h3 style="margin-top:0; color:#1e3a8a;">🔍 Calculadora de Mermas Individual</h3>
+        <label for="producto">Selecciona el Producto:</label>
+        <select id="producto"></select>
 
-    <div class="info-mermas">
-        <strong>Ficha técnica y mermas estimadas:</strong>
-        <ul>
-            <li>Peso neto por bandeja: <span id="lblPeso">0</span> kg</li>
-            <li>Pérdida por congelación (Nitrógeno): <span id="lblCongelacion">0</span>%</li>
-            <li>Merma por fileteadora: <span id="lblFileteado">0</span>%</li>
-            <li>Desecho manual/operario: <span id="lblDesecho">0</span> kg fijos por lote</li>
-        </ul>
+        <div class="info-mermas">
+            <strong>Ficha técnica y mermas estimadas:</strong>
+            <ul>
+                <li>Peso neto por bandeja: <span id="lblPeso">0</span> kg</li>
+                <li>Pérdida por congelación (Nitrógeno): <span id="lblCongelacion">0</span>%</li>
+                <li>Merma por fileteadora: <span id="lblFileteado">0</span>%</li>
+                <li>Desecho manual/operario: <span id="lblDesecho">0</span> % sobre el total de la materia prima</li>
+            </ul>
+        </div>
+
+        <label for="modoCalculo">¿Cómo quieres introducir la producción?</label>
+        <select id="modoCalculo" style="margin-bottom: 15px; font-weight: bold; background-color: #ffffff;">
+            <option value="porKilos">Por Kilos Totales del Pedido</option>
+            <option value="porBandejas">Por Cantidad de Bandejas a Rellenar</option>
+        </select>
+
+        <label id="lblInputDinamico" for="valorProduccion">Kilos netos del pedido del cliente:</label>
+        <input type="number" id="valorProduccion" placeholder="Introduce el valor" min="0.1" step="0.1">
+
+        <!-- Copia y pega esto justo debajo del input valorProduccion -->
+<button type="button" id="btnCargarLoteTabla" style="margin-top: 10px; margin-bottom: 10px; background: #1e3a8a; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;">
+    ➕ Cargar Lote a la Tabla de Producción
+</button>
+
+        <label for="pesoCaja">Capacidad de cada caja (en kg de producto):</label>
+        <input type="number" id="pesoCaja" placeholder="Ej. 6" min="0.1" step="0.1" value="6">
+
+        <div class="resultado-box" id="resultadoTotal">Materia prima necesaria: 0.00 kg iniciales</div>
+        <div class="resultado-box cajas-box" id="resultadoCajas">Cajas de Materia Prima necesarias: 0</div>
+        <div class="resultado-box bandejas-box" id="resultadoBandejasVacias">Bandejas necesarias para el lote: 0</div>
+        <div class="detalle-calculo" id="detalle">Materia prima bruta requerida antes de entrar a la línea de proceso.</div>
     </div>
 
-    <!-- 👇 NUEVO: Selector para elegir el modo de cálculo -->
-    <label for="modoCalculo">¿Cómo quieres introducir la producción?</label>
-    <select id="modoCalculo" style="margin-bottom: 15px; font-weight: bold; background-color: #f8fafc;">
-        <option value="porKilos">Por Kilos Totales del Pedido</option>
-        <option value="porBandejas">Por Cantidad de Bandejas a Rellenar</option>
-    </select>
+    <!-- SECCIÓN 2: TABLA DE PREVISIÓN DE COMPRAS Y REPOSICIÓN DE STOCK -->
+    <div class="inventario-panel" style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+        <h3 style="margin-top: 0; color: #166534; font-size: 1.2em;">📦 Previsión Logística: Pedidos según Actividad del Día</h3>
+        <p style="font-size: 0.85em; color: #475569; margin-bottom: 15px;">Introduce el inventario de la mañana y los kilos sacados hoy. El sistema calculará el remanente actual y lo que te falta comprar para cubrir el día de mañana:</p>
+        
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9em; text-align: left;">
+                <thead>
+                    <tr style="background: #dcfce7; color: #14532d;">
+                        <th style="padding: 8px; border-bottom: 2px solid #bbf7d0;">Modelo Bandeja</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #bbf7d0; width: 110px;">Stock Hoy (Uds)</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #bbf7d0; width: 110px;">Kilos Hoy (Kg)</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #bbf7d0; width: 100px;">Gastadas Hoy</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #bbf7d0; width: 100px;">Quedan Hoy</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #bbf7d0; color: #b91c1c;">Pedido Mañana</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaCuerpoInventario">
+                    <!-- Filas dinámicas por JS -->
+                </tbody>
+            </table>
+        </div>
 
-    <!-- Este input cambiará dinámicamente de texto explicativo según el modo -->
-    <label id="lblInputDinamico" for="valorProduccion">Kilos netos del pedido del cliente:</label>
-    <input type="number" id="valorProduccion" placeholder="Introduce el valor" min="0.1" step="0.1">
+        <button type="button" id="btnCalcularOrdenCompra" style="margin-top: 15px; background: #166534; color: white; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; font-size: 1em;">
+            🔄 Procesar Cierre del Día y Previsión de Compra
+        </button>
+        <!-- Añade esto justo debajo del botón btnCalcularOrdenCompra en tu index.html -->
+<button type="button" id="btnExportarPrevisionPDF" style="margin-top: 10px; background: #b91c1c; color: white; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; font-size: 1em;">
+    📄 Exportar Previsión de Compras a PDF
+</button>
 
-    <label for="pesoCaja">Capacidad de cada caja (en kg de producto):</label>
-    <input type="number" id="pesoCaja" placeholder="Ej. 6" min="0.1" step="0.1" value="6">
+    </div>
 
-    <!-- Bloques de resultados -->
-    <div class="resultado-box" id="resultadoTotal">Materia prima necesaria: 0.00 kg iniciales</div>
-    <div class="resultado-box cajas-box" id="resultadoCajas">Cajas de embalaje necesarias: 0</div>
-    <div class="resultado-box bandejas-box" id="resultadoBandejasVacias">Bandejas necesarias para el lote: 0</div>
-    
-    <div class="detalle-calculo" id="detalle">Materia prima bruta requerida antes de entrar a la línea de proceso.</div>
-
-    <!-- Panel de Administración -->
+    <!-- SECCIÓN 3: PANEL DE ADMINISTRACIÓN -->
     <div class="admin-panel">
         <button type="button" id="btnToggleAdmin" class="btn-secondary">⚙️ Gestionar Productos de la Fábrica</button>
         
@@ -66,7 +105,7 @@
             <label for="nuevaMermaFileteado">Merma Fileteadora (%):</label>
             <input type="number" id="nuevaMermaFileteado" placeholder="Ej. 12" step="0.1">
 
-            <label for="nuevoDesechoFijo">Desecho manual fijo (kg por lote):</label>
+            <label for="nuevoDesechoFijo">Desecho manual Operario:</label>
             <input type="number" id="nuevoDesechoFijo" placeholder="Ej. 2" step="0.1">
 
             <label for="nuevoPesoCajaDefecto">Peso de caja por defecto (kg):</label>

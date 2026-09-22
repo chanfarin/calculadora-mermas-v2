@@ -136,3 +136,139 @@ h3 { color: #1e3a8a; font-size: 1.1em; margin-bottom: 10px; }
 .btn-eliminar:hover {
     background-color: #dc2626; /* Se oscurece al pasar el ratón */
 }
+
+/* ==========================================================================
+   ESTILOS ADAPTATIVOS PARA LA TABLA DE INVENTARIO Y PREVISIÓN DE COMPRAS
+   ========================================================================== */
+
+/* Contenedor con scroll horizontal para pantallas ultra pequeñas */
+.inventario-panel {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 25px;
+    margin-bottom: 25px;
+}
+
+.inventario-panel h3 {
+    margin-top: 0;
+    color: #166534;
+    font-size: 1.15em;
+    border-bottom: 2px solid #bbf7d0;
+    padding-bottom: 6px;
+}
+
+/* Forzar ancho completo y diseño limpio de la tabla */
+.inventario-panel table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88em;
+    color: #1e293b;
+    margin-top: 10px;
+}
+
+.inventario-panel th {
+    background: #dcfce7;
+    color: #14532d;
+    font-weight: 700;
+    padding: 8px 6px;
+    border-bottom: 2px solid #bbf7d0;
+    text-transform: uppercase;
+    font-size: 0.8em;
+    letter-spacing: 0.5px;
+}
+
+.inventario-panel td {
+    padding: 10px 6px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+}
+
+/* Filas alternas para facilitar la lectura del operario */
+.inventario-panel tbody tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+
+/* Inputs táctiles cómodos para el dedo en el móvil */
+.inventario-panel input[type="number"] {
+    width: 65px;
+    padding: 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 0.95em;
+    text-align: center;
+    font-weight: 600;
+    color: #0f172a;
+    background-color: #ffffff;
+    -webkit-appearance: none; /* Quita flechas raras en iPhone */
+    margin: 0;
+}
+
+.inventario-panel input[type="number"]:focus {
+    border-color: #22c55e;
+    outline: none;
+    background-color: #fff;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}
+
+/* Columna de pedido urgente resaltada */
+.inventario-panel td[id^="pedido_"] {
+    font-weight: 800;
+}
+
+/* Botones de acción principal (Cierre y PDF) */
+#btnCalcularOrdenCompra, #btnExportarPrevisionPDF {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.95em;
+    text-align: center;
+    transition: background 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+#btnCalcularOrdenCompra {
+    background: #166534;
+    color: #ffffff;
+    margin-top: 15px;
+}
+
+#btnCalcularOrdenCompra:active {
+    background: #14532d;
+}
+
+#btnExportarPrevisionPDF {
+    background: #b91c1c;
+    color: #ffffff;
+    margin-top: 10px;
+}
+
+#btnExportarPrevisionPDF:active {
+    background: #991b1b;
+}
+
+/* Ajustes específicos para pantallas de móviles (Modo Responsive) */
+@media (max-width: 480px) {
+    .inventario-panel {
+        padding: 8px;
+    }
+    
+    .inventario-panel table {
+        font-size: 0.82em; /* Compacta el texto un poco más en pantallas estrechas */
+    }
+    
+    .inventario-panel th, .inventario-panel td {
+        padding: 8px 4px; /* Reduce los márgenes laterales para ganar espacio */
+    }
+    
+    .inventario-panel input[type="number"] {
+        width: 55px; /* Inputs ligeramente más estrechos en móviles pequeños */
+        padding: 5px 3px;
+        font-size: 0.9em;
+    }
+}
