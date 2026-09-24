@@ -300,10 +300,17 @@ function calcularOrdenCompraGlobal() {
     celdaQuedan.innerText = dP.stockQuedaHoy;
     celdaQuedan.style.color = dP.stockQuedaHoy < 0 ? "#b91c1c" : "#166534";
 
+    // Reemplaza la línea del "document.getElementById(`pedido_${idSafelink}`).innerHTML = ..." por esta:
+    const textoFinalPedido =
+      dP.pedidoProveedorTexto === "0"
+        ? `<span style="color:#166534;">Suficiente</span>`
+        : `<span style="color:#b91c1c; text-decoration: underline; font-weight:bold;">Pedir: ${dP.pedidoProveedorTexto}</span>`;
+
+    // Revisa que la línea final de tu función calcularOrdenCompraGlobal() en index.js pinte las unidades así:
     document.getElementById(`pedido_${idSafelink}`).innerHTML =
-      dP.pedidoProveedor === 0
+      prevision.pedidoProveedor === 0
         ? `🛒 <span style="color:#166534;">Pedir: 0</span>`
-        : `🛒 <span style="color:#b91c1c; text-decoration: underline;">Pedir: ${dP.pedidoProveedor}</span>`;
+        : `🛒 <span style="color:#b91c1c; text-decoration: underline;">Pedir: ${prevision.pedidoProveedor} uds</span>`;
   });
 }
 
@@ -523,17 +530,17 @@ function generarInformePrevisionPDF() {
   let y = 20; // Coordenada vertical inicial para escribir el texto
 
   // 1. Cabecera del Reporte Industrial
-  doc.setFont("helvetica", "bold");
+  doc.setFont("pacifica", "bold");
   doc.setFontSize(16);
   doc.text("INFORME PREDICTIVO DE COMPRA DE BANDEJAS", 14, y);
 
   y += 5;
-  doc.setDrawColor(185, 28, 28);
+  doc.setDrawColor(180, 0, 0);
   doc.setLineWidth(1);
   doc.line(14, y, 196, y); // Línea divisoria roja de diseño
 
   y += 10;
-  doc.setFont("helvetica", "normal");
+  doc.setFont("pacifica", "normal");
   doc.setFontSize(10);
   doc.text(`Fecha de Emisión: ${new Date().toLocaleDateString()}`, 14, y);
   doc.text(
@@ -543,7 +550,7 @@ function generarInformePrevisionPDF() {
   );
 
   y += 12;
-  doc.setFont("helvetica", "bold");
+  doc.setFont("pacifica", "bold");
   doc.setFontSize(11);
   doc.setFillColor(241, 245, 249);
   doc.rect(14, y - 4, 182, 6, "F");
@@ -592,7 +599,7 @@ function generarInformePrevisionPDF() {
       y = 20;
     }
 
-    doc.setFont("helvetica", "normal");
+    doc.setFont("futura", "normal");
     doc.text(molde, 16, y);
     doc.text(stockManana, 65, y);
     doc.text(kilosDia + " kg", 95, y);
@@ -604,10 +611,10 @@ function generarInformePrevisionPDF() {
       ordenCompraTexto.includes("Pedir: 0") ||
       ordenCompraTexto.trim() === "0"
     ) {
-      doc.setFont("helvetica", "normal");
+      doc.setFont("futura", "normal");
       doc.text("0 uds", 175, y);
     } else {
-      doc.setFont("helvetica", "bold");
+      doc.setFont("futura", "bold");
       // Extraemos solo el número limpio del texto visual de la celda
       const unidadesLimpias = ordenCompraTexto.replace(/[^0-9]/g, "");
       doc.text(`${unidadesLimpias} uds ⚠️`, 175, y);
@@ -616,7 +623,7 @@ function generarInformePrevisionPDF() {
   });
 
   y += 15;
-  doc.setFont("helvetica", "italic");
+  doc.setFont("futura", "italic");
   doc.setFontSize(9);
   doc.text(
     "* Nota predictiva: La orden de compra asume un volumen de producción para mañana equivalente al procesado hoy.",
@@ -626,7 +633,7 @@ function generarInformePrevisionPDF() {
 
   // 3. Bloque de firmas de validación para la oficina
   y += 25;
-  doc.setFont("helvetica", "normal");
+  doc.setFont("futura", "normal");
   doc.line(14, y, 64, y);
   doc.line(146, y, 196, y);
   y += 5;

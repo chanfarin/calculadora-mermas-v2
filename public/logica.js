@@ -1,28 +1,38 @@
 // Función para calcular los datos de un lote individual (Mermas, cajas, bandejas)
+// Función para calcular los datos de un lote individual (Mermas, cajas, envases)
 export function calcularLote(p, modo, valorInput, pesoPorCaja) {
   if (valorInput <= 0) return null;
 
   let kilosTotalesPedido = 0;
   let totalBandejasGastadas = 0;
 
+  // Detectamos si el envase asignado es una bolsa de 1kg o 2kg, si no, usamos el peso de la bandeja
+  const nombreEnvase = String(p.tipoBandeja || "").toLowerCase();
+  let divisorEnvase = parseFloat(p.pesoBandeja) || 1;
+
+  if (nombreEnvase.includes("bolsa") && nombreEnvase.includes("2")) {
+    divisorEnvase = 2; // Forzamos divisor de 2kg para bolsas de dos kilos
+  } else if (nombreEnvase.includes("bolsa") && nombreEnvase.includes("1")) {
+    divisorEnvase = 1; // Forzamos divisor de 1kg para bolsas de un kilo
+  }
+
   if (modo === "porKilos") {
     kilosTotalesPedido = valorInput;
-    totalBandejasGastadas = Math.ceil(
-      kilosTotalesPedido / (p.pesoBandeja || 1),
-    );
+    totalBandejasGastadas = Math.ceil(kilosTotalesPedido / divisorEnvase);
   } else {
     totalBandejasGastadas = Math.ceil(valorInput);
-    kilosTotalesPedido = totalBandejasGastadas * (p.pesoBandeja || 1);
+    kilosTotalesPedido = totalBandejasGastadas * divisorEnvase;
   }
 
   const totalCajas =
     pesoPorCaja > 0 ? Math.ceil(kilosTotalesPedido / pesoPorCaja) : 0;
 
+  // Aplicamos el desperdicio manual como porcentaje (%) en cascada
   let pesoRequerido = kilosTotalesPedido;
-  pesoRequerido = pesoRequerido / ((100 - (p.desechoFijoKg || 0)) / 100); // Desperdicio manual %
-  pesoRequerido = pesoRequerido / ((100 - (p.mermaFileteado || 0)) / 100); // Merma fileteadora %
+  pesoRequerido = pesoRequerido / ((100 - (p.desechoFijoKg || 0)) / 100);
+  pesoRequerido = pesoRequerido / ((100 - (p.mermaFileteado || 0)) / 100);
   const materiaPrimaInicial =
-    pesoRequerido / ((100 - (p.mermaNitrogeno || 0)) / 100); // Merma Nitrógeno %
+    pesoRequerido / ((100 - (p.mermaNitrogeno || 0)) / 100);
 
   return {
     materiaPrimaInicial,
@@ -32,8 +42,10 @@ export function calcularLote(p, modo, valorInput, pesoPorCaja) {
   };
 }
 
-// Función para calcular la previsión de stock de un molde de bandeja para mañana
-// Función predictiva global corregida sin bucles conflictivos para el inventario permanente
+// Función predictiva global sin bucles conflictivos adaptada para bolsas y bandejas
+// Función predictiva global adaptada para convertir bolsas automáticas a Rollos de Film
+// Función predictiva directa y limpia de errores para el inventario de la fábrica
+// Función predictiva directa y limpia de errores para el inventario de la fábrica
 export function calcularPrevisionMolde(
   stockInicialHoy,
   kilosProcesadosHoy,
@@ -41,23 +53,31 @@ export function calcularPrevisionMolde(
   listaProductosGlobal,
 ) {
   let bandejasGastadasHoy = 0;
-  let pesoBandejaReferencia = 1; // Por si acaso, un salvavidas por defecto de 1kg
+  let divisorEnvaseReferencia = 1;
 
-  // Buscamos en la base de datos el peso neto que acepta este modelo de bandeja específico
+  // Buscamos en la base de datos el peso neto que acepta este modelo de envase
   for (const id in listaProductosGlobal) {
     if (listaProductosGlobal[id].tipoBandeja === molde) {
-      pesoBandejaReferencia =
-        parseFloat(listaProductosGlobal[id].pesoBandeja) || 1;
-      break; // En cuanto encontramos un producto con esa bandeja, adoptamos su peso de referencia
+      const nombreEnvase = String(molde).toLowerCase();
+      if (nombreEnvase.includes("bolsa") && nombreEnvase.includes("2")) {
+        divisorEnvaseReferencia = 2; // Bolsa de 2kg
+      } else if (nombreEnvase.includes("bolsa") && nombreEnvase.includes("1")) {
+        divisorEnvaseReferencia = 1; // Bolsa de 1kg
+      } else {
+        divisorEnvaseReferencia =
+          parseFloat(listaProductosGlobal[id].pesoBandeja) || 1; // Bandeja estándar
+      }
+      break;
     }
   }
 
-  // Si hay kilos introducidos en la tabla, calculamos las bandejas gastadas reales de forma directa
+  // Calculamos las unidades físicas consumidas hoy
   if (kilosProcesadosHoy > 0) {
-    bandejasGastadasHoy = Math.ceil(kilosProcesadosHoy / pesoBandejaReferencia);
+    bandejasGastadasHoy = Math.ceil(
+      kilosProcesadosHoy / divisorEnvaseReferencia,
+    );
   }
 
-  // Realizamos las operaciones logísticas definitivas de resta y pedido predictivo
   const stockQuedaHoy = stockInicialHoy - bandejasGastadasHoy;
   const balancePrevisionManana = stockQuedaHoy - bandejasGastadasHoy;
   const pedidoProveedor =
@@ -66,6 +86,6 @@ export function calcularPrevisionMolde(
   return {
     bandejasGastadasHoy,
     stockQuedaHoy,
-    pedidoProveedor,
+    pedidoProveedor, // Retornamos el número limpio de unidades
   };
 }
