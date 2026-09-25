@@ -4,6 +4,7 @@ import { calcularLote, calcularPrevisionMolde } from "./logica.js";
 let listaProductosGlobal = {};
 let listaStocksGlobal = {};
 let idProductoEnEdicion = null;
+let instanciaGraficoMermas = null;
 
 window.onload = function () {
   document.getElementById("producto").addEventListener("change", () => {
@@ -38,6 +39,16 @@ window.onload = function () {
   document
     .getElementById("btnExportarPrevisionPDF")
     .addEventListener("click", generarInformePrevisionPDF);
+
+  document
+    .getElementById("filtroGrafico")
+    .addEventListener("change", renderizarPanelGraficoMermas);
+
+  document
+    .getElementById("btnExportarGraficoPDF")
+    .addEventListener("click", generarInformeMermasPDF);
+
+  renderizarPanelGraficoMermas();
 };
 
 function manejarCambioModo() {
@@ -321,12 +332,42 @@ async function procesarCierreDeJornadaMongoDB() {
     )
   )
     return;
+
+  // 1. CAPTURA PRIORITARIA: Guardamos las referencias de control base
+  const modo = document.getElementById("modoCalculo").value;
+  const pesoPorCaja =
+    parseFloat(document.getElementById("pesoCaja").value) || 0;
+
+  // Creamos una lista temporal para guardar lo que se ha producido hoy antes de borrarlo de la pantalla
+  const produccionDelDiaParaHistorico = [];
+
+  // 2. ACTUALIZACIÓN DE STOCK Y CAPTURA DE PRODUCCIÓN (Fila por Fila)
   for (const input of document.querySelectorAll(".stock-manana")) {
     const molde = input.getAttribute("data-molde").trim();
     const idSafelink = molde.replace(/\s+/g, "_");
+
+    // Leemos el stock remanente calculado para mañana
     const stockRemanenteReal =
       parseInt(document.getElementById(`quedan_${idSafelink}`).innerText) || 0;
+
+    // Capturamos los kilos que se han acumulado hoy en esta fila específica
+    const inputKilosFila = document.querySelector(
+      `.kilos-dia[data-molde="${molde}"]`,
+    );
+    const kilosDeEstaFila = inputKilosFila
+      ? parseFloat(inputKilosFila.value) || 0
+      : 0;
+
+    // Si esta fila ha tenido kilos de trabajo hoy, la guardamos para procesar su merma en el paso 3
+    if (kilosDeEstaFila > 0) {
+      produccionDelDiaParaHistorico.push({
+        molde: molde,
+        kilos: kilosDeEstaFila,
+      });
+    }
+
     try {
+      // Sincronizamos las existencias fijas en MongoDB y ponemos sus kilos a 0 para mañana
       await fetch(`/api/inventario/${encodeURIComponent(molde)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -334,10 +375,73 @@ async function procesarCierreDeJornadaMongoDB() {
       });
       listaStocksGlobal[molde] = stockRemanenteReal;
       if (window.listaKilosGlobal) window.listaKilosGlobal[molde] = 0;
-    } catch {}
+    } catch (err) {
+      console.error("Error al sincronizar el molde:", molde, err);
+    }
   }
+
+  // 3. 👇 NUEVO BLOQUE MULTIPRODUCTO: Calcula y envía a MongoDB la merma de CADA artículo que haya trabajado hoy
+  if (produccionDelDiaParaHistorico.length > 0) {
+    for (const lote of produccionDelDiaParaHistorico) {
+      // Buscamos en tu base de datos qué producto de la fábrica utiliza este molde de envase
+      let productoAsociado = null;
+      for (const id in listaProductosGlobal) {
+        if (listaProductosGlobal[id].tipoBandeja === lote.molde) {
+          productoAsociado = listaProductosGlobal[id];
+          break;
+        }
+      }
+
+      // Si encontramos el artículo, calculamos su merma y la mandamos a la colección historico_mermas
+      if (productoAsociado) {
+        try {
+          const res = calcularLote(
+            productoAsociado,
+            modo,
+            lote.kilos,
+            pesoPorCaja,
+          );
+          if (res) {
+            const mermasTurnoKg =
+              res.materiaPrimaInicial - res.kilosTotalesPedido;
+
+            await fetch("/api/historico-mermas", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                producto: productoAsociado.nombre,
+                kilosMermados: mermasTurnoKg,
+              }),
+            });
+          }
+        } catch (errLote) {
+          console.warn(
+            "No se pudo calcular la merma para el molde:",
+            lote.molde,
+            errLote,
+          );
+        }
+      }
+    }
+
+    // Una vez enviados todos los productos de golpe a la nube, refrescamos el gráfico de barras
+    try {
+      await renderizarPanelGraficoMermas();
+    } catch (errGrafico) {
+      console.warn(errGrafico);
+    }
+  }
+
+  // 4. LIMPIEZA VISUAL ABSOLUTA: Se ejecuta siempre al final para dejar la pantalla lista para mañana
   document.getElementById("valorProduccion").value = "";
-  sincronizarProductos();
+  document.querySelectorAll(".kilos-dia").forEach((input) => {
+    input.value = "0";
+  });
+
+  await sincronizarProductos();
+  alert(
+    "🎉 Turno cerrado con éxito. Se han descontado los stocks y guardado el histórico de mermas de todos los productos en MongoDB.",
+  );
 }
 
 function renderizarListaAdmin() {
@@ -643,4 +747,251 @@ function generarInformePrevisionPDF() {
   // Guardamos y descargamos el archivo final de forma nativa en el móvil o PC
   const fechaArchivo = new Date().toLocaleDateString().replace(/\//g, "-");
   doc.save(`Prevision_Compras_Bandejas_${fechaArchivo}.pdf`);
+}
+// Función que descarga el histórico de MongoDB y dibuja el gráfico de barras con Chart.js
+// Función corregida: combina fecha y producto en el eje X para evitar solapamientos
+// Función que filtra por día o acumula por mes los datos de mermas de MongoDB
+async function renderizarPanelGraficoMermas() {
+  const canvas = document.getElementById("graficoMermasCanvas");
+  if (!canvas) return;
+
+  try {
+    const respuesta = await fetch("/api/historico-mermas");
+    if (!respuesta.ok) return;
+    const datosHistoricos = await respuesta.json();
+
+    const filtro = document.getElementById("filtroGrafico").value;
+    const fechaHoy = new Date().toLocaleDateString("es-ES");
+    const mesActual = fechaHoy.substring(3, 10);
+
+    let etiquetasEjeX = [];
+    let valoresKilos = [];
+    let nombresProductos = [];
+
+    if (filtro === "diario") {
+      const datosHoy = datosHistoricos.filter(
+        (item) => item.fecha === fechaHoy,
+      );
+      etiquetasEjeX = datosHoy.map((item) => item.producto);
+      valoresKilos = datosHoy.map((item) => item.kilosMermados);
+      nombresProductos = datosHoy.map((item) => item.producto);
+    } else {
+      const mermasAgrupadasPorProducto = {};
+      datosHistoricos.forEach((item) => {
+        if (item.fecha && item.fecha.includes(mesActual)) {
+          const prod = item.producto;
+          mermasAgrupadasPorProducto[prod] =
+            (mermasAgrupadasPorProducto[prod] || 0) + (item.kilosMermados || 0);
+        }
+      });
+      etiquetasEjeX = Object.keys(mermasAgrupadasPorProducto);
+      valoresKilos = Object.values(mermasAgrupadasPorProducto);
+      nombresProductos = Object.keys(mermasAgrupadasPorProducto);
+    }
+
+    // ✅ REPARADO GRÁFICAMENTE: Añadido el array [] de salvavidas para que no se rompa el script
+    if (etiquetasEjeX.length === 0) {
+      etiquetasEjeX = ["Sin datos registrados"];
+      valoresKilos = {}; // Ponemos un cero limpio entre corchetes
+      nombresProductos = ["Sin actividad"];
+    }
+
+    if (instanciaGraficoMermas) {
+      instanciaGraficoMermas.destroy();
+    }
+
+    instanciaGraficoMermas = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: etiquetasEjeX,
+        datasets: [
+          {
+            label: "Mermas (Kg)",
+            data: valoresKilos,
+            backgroundColor:
+              filtro === "diario"
+                ? "rgba(30, 58, 138, 0.75)"
+                : "rgba(22, 101, 52, 0.75)",
+            borderColor:
+              filtro === "diario" ? "rgb(30, 58, 138)" : "rgb(22, 101, 52)",
+            borderWidth: 1,
+            borderRadius: 4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                return `${nombresProductos[context.dataIndex]}: ${context.parsed.y.toFixed(2)} kg mermados`;
+              },
+            },
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: { color: "#f1f5f9" },
+            title: {
+              display: true,
+              text: "Kilos desperdiciados",
+              font: { size: 10 },
+            },
+          },
+          x: {
+            grid: { display: false },
+            ticks: { font: { size: 9 }, maxRotation: 30, minRotation: 30 },
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error al renderizar el gráfico estadístico:", error);
+  }
+}
+
+// Función que compila el histórico de mermas de la nube y lo maqueta en un PDF formal
+// Función corregida: rellenado el hueco del array para evitar que se congele el botón
+async function generarInformeMermasPDF() {
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) {
+    alert("La librería de PDFs no está lista. Revisa tu conexión.");
+    return;
+  }
+
+  try {
+    const respuesta = await fetch("/api/historico-mermas");
+    if (!respuesta.ok) throw new Error();
+    const datosHistoricos = await respuesta.json();
+
+    const doc = new jsPDF();
+    let y = 20;
+    const fechaHoy = new Date().toLocaleDateString("es-ES");
+    const mesActual = fechaHoy.substring(3, 10); // Filtro "MM/AAAA"
+
+    // 1. Encabezado del documento
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("AUDITORÍA DE PROCESO: HISTORIAL DE MERMAS", 14, y);
+    y += 5;
+    doc.setDrawColor(30, 58, 138);
+    doc.setLineWidth(1);
+    doc.line(14, y, 196, y);
+
+    y += 10;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(`Fecha de Cierre: ${fechaHoy}`, 14, y);
+    doc.text(`Generado desde Terminal Móvil`, 140, y);
+
+    // 2. Sección: Mermas de la jornada de HOY
+    y += 15;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setFillColor(239, 246, 255);
+    doc.rect(14, y - 4, 182, 6, "F");
+    doc.text("1. DESGLOSE DE DESPERDICIO MANUAL Y CORTE (HOY)", 16, y);
+
+    y += 10;
+    doc.setFontSize(9);
+    doc.text("Producto Procesado", 16, y);
+    doc.text("Kilos Mermados Hoy (Kg)", 160, y);
+    y += 2;
+    doc.setDrawColor(226, 232, 240);
+    doc.line(14, y, 196, y);
+
+    const datosHoy = datosHistoricos.filter((item) => item.fecha === fechaHoy);
+
+    if (datosHoy.length === 0) {
+      y += 8;
+      doc.setFont("helvetica", "italic");
+      doc.text(
+        "No se han registrado cierres de producción en la jornada de hoy.",
+        16,
+        y,
+      );
+    } else {
+      datosHoy.forEach((item) => {
+        y += 8;
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.setFont("helvetica", "normal");
+        doc.text(String(item.producto), 16, y);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${Number(item.kilosMermados).toFixed(2)} kg`, 160, y);
+      });
+    }
+
+    // 3. Sección: Acumulado del MES
+    y += 20;
+    if (y > 250) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setFillColor(240, 253, 244);
+    doc.rect(14, y - 4, 182, 6, "F");
+    doc.text(`2. ACUMULADO CONSOLIDADO DEL MES ACTUAL (${mesActual})`, 16, y);
+
+    y += 10;
+    doc.setFontSize(9);
+    doc.text("Producto", 16, y);
+    doc.text("Total Mermado en el Mes (Kg)", 150, y);
+    y += 2;
+    doc.setDrawColor(226, 232, 240);
+    doc.line(14, y, 196, y);
+
+    // Agrupamos el histórico por mes de forma matemática
+    const mermasMensuales = {};
+    datosHistoricos.forEach((item) => {
+      if (item.fecha && item.fecha.includes(mesActual)) {
+        mermasMensuales[item.producto] =
+          (mermasMensuales[item.producto] || 0) + (item.kilosMermados || 0);
+      }
+    });
+
+    const productosMes = Object.keys(mermasMensuales);
+    if (productosMes.length === 0) {
+      y += 8;
+      doc.setFont("helvetica", "italic");
+      doc.text("No hay datos acumulados para el mes en curso.", 16, y);
+    } else {
+      productosMes.forEach((prod) => {
+        y += 8;
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.setFont("helvetica", "normal");
+        doc.text(prod, 16, y);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${mermasMensuales[prod].toFixed(2)} kg`, 150, y);
+      });
+    }
+
+    // Pie de firmas formal de la empresa
+    y += 30;
+    if (y > 260) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.line(14, y, 64, y);
+    doc.line(146, y, 196, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Firma Responsable Planta", 14, y);
+    doc.text("Copia Dirección General", 146, y);
+
+    doc.save(`Informe_Mermas_Fabrica_${fechaHoy.replace(/\//g, "-")}.pdf`);
+  } catch (error) {
+    alert("Error al compilar los datos para el PDF: " + error.message);
+  }
 }

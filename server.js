@@ -11,10 +11,18 @@ const MONGODB_URI =
 
 let dbCollection;
 let invCollection; // Colección para los stocks de las bandejas
+let histCollection; // Nueva: Coleccion para almacenar el histórico de mermas
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
-
+app.use(
+  "/js/jspdf",
+  express.static(path.join(__dirname, "node_modules/jspdf/dist")),
+);
+app.use(
+  "/js/chartjs",
+  express.static(path.join(__dirname, "node_modules/chart.js/dist")),
+);
 async function conectarBaseDatos() {
   try {
     const client = new MongoClient(MONGODB_URI);
@@ -22,6 +30,8 @@ async function conectarBaseDatos() {
     const database = client.db("fabrica");
     dbCollection = database.collection("productos");
     invCollection = database.collection("inventario"); // Inicializamos la colección de stock
+    histCollection = database.collection("historico_mermas");
+
     console.log("=== Conectado con éxito a MongoDB ===");
   } catch (error) {
     console.error("❌ Error crítico en la conexión a MongoDB:", error);
@@ -158,6 +168,45 @@ app.put("/api/inventario/:molde", async (req, res) => {
       .json({ mensaje: "Stock de bandeja sincronizado en la nube" });
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+// GET : Obtener el historico de mermas  consolidado para el gráfico
+
+app.get("/api/historico-mermas", async (req, res) => {
+  try {
+    if (!histCollection)
+      return res.status(500).json({ error: "Base de datos no disponible" });
+    // Traemos los últmos treinta registros de merma ordenados por fecha
+    const historico = await histCollection
+      .find({})
+      .sort({ fecha: -1 })
+      .limit(30)
+      .toArray();
+    res.status(200).json(historico.reverse()); // Los invertimos para que el gráfico pinte de izquierda a derecha
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST: Guardar un registro de merma al cerrar el turno
+
+app.post("/api/historico-mermas", async (req, res) => {
+  try {
+    if (!histCollection)
+      return res.status(500).json({ error: "Base dedatos no disponible" });
+
+    const { producto, kilosMermados } = req.body;
+
+    await histCollection.insertOne({
+      fecha: new Date().toLocaleDateString("es-Es"),
+      producto: String(producto).trim(),
+      kilosMermados: Number(kilosMermados) || 0,
+      timestamp: new Date(),
+    });
+    res.status(201).json({ mensaje: "Histórico de merma registrado" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

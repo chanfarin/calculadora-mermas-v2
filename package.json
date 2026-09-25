@@ -12,7 +12,9 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "chart.js": "^4.5.1",
     "express": "^5.2.1",
+    "jspdf": "^4.2.1",
     "mongodb": "^7.6.0",
     "mongoose": "^9.9.5"
   }

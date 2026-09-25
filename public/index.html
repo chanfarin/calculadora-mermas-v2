@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Producción y Mermas - Fábrica</title>
     <link rel="stylesheet" href="index.css">
-    <script src=https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js></script>
+    <!-- Reemplaza las llamadas de internet por tus nuevos archivos locales en index.html -->
+<script src="/js/chartjs/chart.umd.js"></script>
+<script src="/js/jspdf/jspdf.umd.min.js"></script>
+
     <!-- Forzamos la actualización de caché en el navegador -->
     <script src="index.js?v=41" type="module"></script>
 </head>
@@ -39,10 +42,10 @@
         <label id="lblInputDinamico" for="valorProduccion">Kilos netos del pedido del cliente:</label>
         <input type="number" id="valorProduccion" placeholder="Introduce el valor" min="0.1" step="0.1">
 
-        <!-- Copia y pega esto justo debajo del input valorProduccion -->
-<button type="button" id="btnCargarLoteTabla" style="margin-top: 10px; margin-bottom: 10px; background: #1e3a8a; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;">
+         <!-- Copia y pega esto justo debajo del input valorProduccion -->
+    <button type="button" id="btnCargarLoteTabla" style="margin-top: 10px; margin-bottom: 10px; background: #1e3a8a; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;">
     ➕ Cargar Lote a la Tabla de Producción
-</button>
+    </button>
 
         <label for="pesoCaja">Capacidad de cada caja (en kg de producto):</label>
         <input type="number" id="pesoCaja" placeholder="Ej. 6" min="0.1" step="0.1" value="6">
@@ -80,9 +83,9 @@
             🔄 Procesar Cierre del Día y Previsión de Compra
         </button>
         <!-- Añade esto justo debajo del botón btnCalcularOrdenCompra en tu index.html -->
-<button type="button" id="btnExportarPrevisionPDF" style="margin-top: 10px; background: #b91c1c; color: white; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; font-size: 1em;">
+    <button type="button" id="btnExportarPrevisionPDF" style="margin-top: 10px; background: #b91c1c; color: white; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; font-size: 1em;">
     📄 Exportar Previsión de Compras a PDF
-</button>
+    </button>
 
     </div>
 
@@ -120,6 +123,32 @@
             <div id="listaAdminProductos"></div>
         </div>
     </div>
+    <!-- Añade este panel gráfico abajo del todo en tu index.html -->
+    <div class="grafico-panel" style="background: #ffffff; border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; margin-top: 25px; margin-bottom: 25px;">
+         <h3 style="margin-top: 0; color: #1e3a8a; font-size: 1.2em; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">📊 Panel de Control: Histórico de Mermas de la Fábrica</h3>
+         <p style="font-size: 0.85em; color: #475569; margin-bottom: 15px;">Evolución de  los kilogramos totales desperdiciados en las últimas jornadas de producción:</p>
+    
+        <!-- Añade este selector justo encima del lienzo del gráfico en tu index.html -->
+        <label for="filtroGrafico" style="font-size: 0.85em; font-weight: bold; color: #1e3a8a;">Selecciona el periodo del informe:</label>
+        <select id="filtroGrafico" style="margin-bottom: 15px; padding: 6px; font-size: 0.9em; border-radius: 4px; border: 1px solid #cbd5e1; background: #fff; width: 100%; font-weight: 600;">
+            <option value="diario">Mermas del Día de Hoy</option>
+            <option value="mensual">Acumulado Total del Mes Actual</option>
+        </select>
+
+
+
+    <!-- El lienzo donde Chart.js pintará el gráfico de barras -->
+        <div style="position: relative; width: 100%; height: 250px;">
+        <canvas id="graficoMermasCanvas"></canvas>
+        </div>
+        <!-- Añade esto justo debajo del canvas del gráfico en tu index.html -->
+<button type="button" id="btnExportarGraficoPDF" style="margin-top: 15px; background: #475569; color: white; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; font-size: 0.95em;">
+    📊 Exportar Historial de Mermas a PDF
+</button>
+
+    </div>
+
+    
 </div>
 
 </body>
