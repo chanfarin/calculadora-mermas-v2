@@ -792,7 +792,7 @@ async function renderizarPanelGraficoMermas() {
     // ✅ REPARADO GRÁFICAMENTE: Añadido el array [] de salvavidas para que no se rompa el script
     if (etiquetasEjeX.length === 0) {
       etiquetasEjeX = ["Sin datos registrados"];
-      valoresKilos = {}; // Ponemos un cero limpio entre corchetes
+      valoresKilos = []; // Ponemos un cero limpio entre corchetes
       nombresProductos = ["Sin actividad"];
     }
 
