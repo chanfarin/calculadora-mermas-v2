@@ -272,3 +272,58 @@ h3 { color: #1e3a8a; font-size: 1.1em; margin-bottom: 10px; }
         font-size: 0.9em;
     }
 }
+/* ==========================================================================
+   DISEÑO MULTICOLUMNA PARA PANTALLAS GRANDES (ORDENADOR Y PORTÁTIL)
+   ========================================================================== */
+
+/* Cuando la pantalla mide más de 1024 píxeles (Ordenadores y Portátiles) */
+@media (min-width: 1024px) {
+    
+    /* Forzamos al contenedor principal a actuar como un Grid de dos columnas distribuidas */
+    #container, .container {
+        display: grid;
+        grid-template-columns: 1fr 1fr; /* Divide la pantalla en dos mitades exactas al 50% */
+        gap: 24px; /* Espacio de separación elegante entre los paneles laterales */
+        max-width: 1400px; /* Ancho máximo de pantalla para que no se estire demasiado */
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    /* Colocamos el título principal ocupando todo el ancho de arriba de lado a lado */
+    h1, .header-title {
+        grid-column: span 2;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+
+    /* Sección 1: La Calculadora de Producción se queda fija a la izquierda */
+    .calculadora-panel, #formCalculadora, div:has(#producto) {
+        grid-column: 1;
+        margin-top: 0 !important;
+        height: auto;
+    }
+
+    /* Sección 2: La Tabla de Inventario de Bandejas/Bolsas se coloca a la derecha */
+    .inventario-panel, #panelInventario, div:has(#tablaCuerpoInventario) {
+        grid-column: 2;
+        margin-top: 0 !important;
+        height: auto;
+    }
+
+    /* Sección 3: El Panel Gráfico de Mermas ocupa el ancho completo abajo a la izquierda */
+    .grafico-panel {
+        grid-column: 1;
+        margin-top: 0 !important;
+    }
+
+    /* Sección 4: El Control de Tiempos de Operarios se coloca abajo a la derecha paralelo al gráfico */
+    .tiempos-panel {
+        grid-column: 2;
+        margin-top: 0 !important;
+    }
+
+    /* El panel de administración ocultable también se expande abajo del todo de lado a lado */
+    .admin-panel, #formNuevoProducto, div:has(#listaAdminProductos) {
+        grid-column: span 2;
+    }
+}

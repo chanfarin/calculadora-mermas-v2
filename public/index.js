@@ -5,6 +5,7 @@ let listaProductosGlobal = {};
 let listaStocksGlobal = {};
 let idProductoEnEdicion = null;
 let instanciaGraficoMermas = null;
+let ultimoFichajeCompletado = null;
 
 window.onload = function () {
   document.getElementById("producto").addEventListener("change", () => {
@@ -47,6 +48,20 @@ window.onload = function () {
   document
     .getElementById("btnExportarGraficoPDF")
     .addEventListener("click", generarInformeMermasPDF);
+  // Habilitamos los botones del control de tiempos e incidencias de operarios
+  document
+    .getElementById("btnIniciarTarea")
+    .addEventListener("click", iniciarFichajeTareaPlanta);
+  document
+    .getElementById("btnFinalizarTarea")
+    .addEventListener("click", finalizarFichajeTareaPlanta);
+  document
+    .getElementById("btnRegistrarIncidencia")
+    .addEventListener("click", registrarIncidenciaTurnoPlanta);
+
+  document
+    .getElementById("btnExportarJornadaPDF")
+    .addEventListener("click", cerrarJornadaCompletaTrabajadorPDF);
 
   renderizarPanelGraficoMermas();
 };
@@ -964,4 +979,270 @@ async function generarInformeMermasPDF() {
   } catch (error) {
     alert("Error al compilar los datos para el PDF: " + error.message);
   }
+}
+// Variables locales en memoria del script para retener el estado del cronómetro del turno
+// Variables globales en memoria del script para la jornada del trabajador
+let registroTiempoActivo = null;
+let incidenciasAcumuladasTurno = [];
+let historialActividadesJornada = []; // 👇 NUEVA: Acumula todas las tareas del día
+
+function iniciarFichajeTareaPlanta() {
+  const operario = document.getElementById("operarioNombre").value.trim();
+  const tarea = document.getElementById("operarioTarea").value;
+
+  if (!operario) {
+    alert("Introduce el nombre del operario o la línea antes de comenzar.");
+    return;
+  }
+
+  registroTiempoActivo = {
+    operario: operario,
+    tarea: tarea,
+    horaInicioTexto: new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    milisegundosInicio: Date.now(),
+  };
+
+  incidenciasAcumuladasTurno = [];
+  document.getElementById("listaIncidenciasTurno").innerHTML = "";
+
+  // Bloqueamos controles táctiles para evitar errores a mitad de tarea
+  document.getElementById("btnIniciarTarea").disabled = true;
+  document.getElementById("btnFinalizarTarea").disabled = false;
+  document.getElementById("operarioNombre").disabled = true;
+  document.getElementById("operarioTarea").disabled = true;
+
+  const cajaIncidencias =
+    document.getElementById("seccionIncidencias") ||
+    document.getElementById("seccaIncidencias");
+  if (cajaIncidencias) cajaIncidencias.classList.remove("hidden");
+
+  document.getElementById("estadoFichajeTexto").innerText =
+    `⏱️ EN PROCESO: ${operario} en [${tarea}] desde las ${registroTiempoActivo.horaInicioTexto}`;
+  document.getElementById("estadoFichajeTexto").style.background = "#bbf7d0";
+}
+
+function registrarIncidenciaTurnoPlanta() {
+  const texto = document.getElementById("textoIncidencia").value.trim();
+  if (!texto) return;
+
+  const horaIncidencia = new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const incidenciaFormateada = `[${horaIncidencia}] ${texto}`;
+  incidenciasAcumuladasTurno.push(incidenciaFormateada);
+
+  const li = document.createElement("li");
+  li.innerText = incidenciaFormateada;
+  li.style.color = "#ea580c";
+  document.getElementById("listaIncidenciasTurno").appendChild(li);
+  document.getElementById("textoIncidencia").value = "";
+}
+
+async function finalizarFichajeTareaPlanta() {
+  if (!registroTiempoActivo) return;
+  if (
+    !confirm("¿Finalizar la tarea actual y guardarla en el historial del día?")
+  )
+    return;
+
+  const milisegundosFin = Date.now();
+  const horaFinTexto = new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const diferenciaMilisegundos =
+    milisegundosFin - registroTiempoActivo.milisegundosInicio;
+  const minutosTrabajados = Math.ceil(diferenciaMilisegundos / 60000);
+
+  const payloadTiempos = {
+    operario: registroTiempoActivo.operario,
+    tarea: registroTiempoActivo.tarea,
+    horaInicio: registroTiempoActivo.horaInicioTexto,
+    horaFin: horaFinTexto,
+    duracionMinutos: minutosTrabajados,
+    incidencias: [...incidenciasAcumuladasTurno],
+  };
+
+  // 1. ACUMULACIÓN HISTÓRICA: Guardamos esta actividad en la memoria de la jornada del móvil
+  historialActividadesJornada.push(payloadTiempos);
+
+  // 2. SINCRONIZACIÓN NUBE: Enviamos el tramo a MongoDB Compass de forma automática
+  try {
+    const respuesta = await fetch("/api/control-tiempos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payloadTiempos),
+    });
+    if (respuesta.status >= 200 && respuesta.status < 300) {
+      alert(
+        `✅ Tarea [${registroTiempoActivo.tarea}] guardada en el historial. Duración: ${minutosTrabajados} min. Continúa con el siguiente proceso.`,
+      );
+    } else {
+      throw new Error();
+    }
+  } catch {
+    console.error("Retraso al guardar tramo en MongoDB");
+  }
+
+  // 3. RESETEO PARCIAL: Dejamos la línea libre pero MANTENEMOS el nombre del operario congelado
+  registroTiempoActivo = null;
+  incidenciasAcumuladasTurno = [];
+
+  document.getElementById("btnIniciarTarea").disabled = false;
+  document.getElementById("btnFinalizarTarea").disabled = true;
+  document.getElementById("operarioTarea").disabled = false; // Permitimos cambiar la tarea para el siguiente lote
+
+  const cajaIncidencias =
+    document.getElementById("seccionIncidencias") ||
+    document.getElementById("seccaIncidencias");
+  if (cajaIncidencias) cajaIncidencias.classList.add("hidden");
+
+  document.getElementById("estadoFichajeTexto").innerText =
+    `Línea lista. Selecciona la siguiente tarea para continuar la jornada.`;
+  document.getElementById("estadoFichajeTexto").style.background = "#fef9c3";
+}
+
+// 👇 LA NUEVA FUNCIÓN CONSOLIDADA: Genera un ÚNICO PDF ordenado al acabar todo el día
+function cerrarJornadaCompletaTrabajadorPDF() {
+  if (historialActividadesJornada.length === 0) {
+    alert(
+      "⚠️ No hay ninguna tarea completada en el historial de hoy para este operario.",
+    );
+    return;
+  }
+
+  if (
+    !confirm(
+      "¿Deseas cerrar la jornada diaria completa del trabajador y descargar su informe consolidado?",
+    )
+  )
+    return;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = 20;
+  const fechaDocumento = new Date().toLocaleDateString("es-ES");
+
+  // Obtenemos las referencias generales a partir del primer tramo registrado
+  const nombreTrabajador = historialActividadesJornada[0].operario;
+
+  // 1. Cabecera Institucional
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text("PARTE DIARIO CONSOLIDADO DE TIEMPOS Y PROCESOS", 14, y);
+  y += 5;
+  doc.setDrawColor(161, 98, 7);
+  doc.setLineWidth(1);
+  doc.line(14, y, 196, y);
+
+  // 2. Ficha del Empleado
+  y += 12;
+  doc.setFontSize(10);
+  doc.setFillColor(254, 252, 232);
+  doc.rect(14, y - 4, 182, 16, "F");
+  doc.text(`TRABAJADOR / LÍNEA:  ${nombreTrabajador}`, 18, y);
+  y += 7;
+  doc.text(`FECHA DE LA JORNADA: ${fechaDocumento}`, 18, y);
+
+  // 3. Cronología del Día (Fila por Fila)
+  y += 15;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("LÍNEA CRONOLÓGICA DE ACTIVIDADES EN PLANTA", 14, y);
+
+  y += 6;
+  doc.setFontSize(9);
+  doc.text("Proceso / Tarea", 16, y);
+  doc.text("Inicio", 60, y);
+  doc.text("Fin", 80, y);
+  doc.text("Duración", 100, y);
+  doc.text("Incidencias Notificadas en Planta", 125, y);
+
+  y += 2;
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.5);
+  doc.line(14, y, 196, y);
+
+  let minutosTotalesDelDia = 0;
+
+  historialActividadesJornada.forEach((actividad) => {
+    y += 8;
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+
+    minutosTotalesDelDia += actividad.duracionMinutos;
+
+    doc.setFont("helvetica", "bold");
+    doc.text(actividad.tarea, 16, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(actividad.horaInicio, 60, y);
+    doc.text(actividad.horaFin, 80, y);
+    doc.text(`${actividad.duracionMinutos} min`, 100, y);
+
+    // Desglosamos las incidencias de este tramo en la misma línea
+    if (!actividad.incidencias || actividad.incidencias.length === 0) {
+      doc.setFont("helvetica", "italic");
+      doc.setTextColor(71, 85, 105);
+      doc.text("Ninguna", 125, y);
+    } else {
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(185, 28, 28);
+      // Si hay varias incidencias en el mismo tramo, las unimos separadas por comas limpias
+      const resumenIncidencias = actividad.incidencias
+        .map((i) => i.substring(8))
+        .join(", ");
+      const textoCortado = doc.splitTextToSize(resumenIncidencias, 68);
+      doc.text(textoCortado, 125, y);
+      // Ajustamos el salto vertical si el texto de la incidencia es largo
+      if (textoCortado.length > 1) y += (textoCortado.length - 1) * 4;
+    }
+    doc.setTextColor(0, 0, 0);
+  });
+
+  // 4. Resumen Total Horario
+  y += 15;
+  if (y > 260) {
+    doc.addPage();
+    y = 20;
+  }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setFillColor(241, 245, 249);
+  doc.rect(14, y - 4, 182, 7, "F");
+  doc.text(
+    `CÓMPUTO TOTAL DE LA JORNADA TRABAJADA: ${minutosTotalesDelDia} MINUTOS UTILES`,
+    16,
+    y,
+  );
+
+  // 5. Bloque de firmas oficiales
+  y += 25;
+  if (y > 260) {
+    doc.addPage();
+    y = 20;
+  }
+  doc.line(14, y, 64, y);
+  doc.line(146, y, 196, y);
+  y += 5;
+  doc.setFontSize(8);
+  doc.text("Firma del Trabajador", 14, y);
+  doc.text("Firma Responsable Fábrica", 146, y);
+
+  // Descargamos el PDF diario único
+  const nombreArchivo = `Resumen_Jornada_${nombreTrabajador.replace(/\s+/g, "_")}_${fechaDocumento.replace(/\//g, "-")}.pdf`;
+  doc.save(nombreArchivo);
+
+  // Reseteamos el casillero general de la memoria de cara al día siguiente
+  historialActividadesJornada = [];
+  document.getElementById("operarioNombre").disabled = false;
+  document.getElementById("operarioNombre").value = "";
+  document.getElementById("estadoFichajeTexto").innerText =
+    "Línea libre. Esperando inicio de tarea...";
+  document.getElementById("estadoFichajeTexto").style.background = "#fef9c3";
 }

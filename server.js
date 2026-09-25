@@ -12,6 +12,7 @@ const MONGODB_URI =
 let dbCollection;
 let invCollection; // Colección para los stocks de las bandejas
 let histCollection; // Nueva: Coleccion para almacenar el histórico de mermas
+let timeCollection; // Nueva coleccion para el registro de tiempo e incidencias
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -31,6 +32,7 @@ async function conectarBaseDatos() {
     dbCollection = database.collection("productos");
     invCollection = database.collection("inventario"); // Inicializamos la colección de stock
     histCollection = database.collection("historico_mermas");
+    timeCollection = database.collection("control-tiempos");
 
     console.log("=== Conectado con éxito a MongoDB ===");
   } catch (error) {
@@ -205,6 +207,33 @@ app.post("/api/historico-mermas", async (req, res) => {
       timestamp: new Date(),
     });
     res.status(201).json({ mensaje: "Histórico de merma registrado" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST: Registrar el cierrre de una tarea con tiemps e ncidencias
+
+app.post("/api/control-tiempos", async (req, res) => {
+  try {
+    if (!timeCollection)
+      return res.status(503).json({ error: "Base de datos no encontrada" });
+    const datosRegistro = req.body;
+    await timeCollection.insertOne({
+      operario: String(datosRegistro.operario || "Desconocido").trim(),
+      tarea: String(datosRegistro.tarea || "Proceso general"),
+      horaInicio: String(datosRegistro.horaInicio),
+      horaFin: String(datosRegistro.horaFin),
+      duarcionMinutos: Number(datosRegistro.duarcionMinutos) || 0,
+      incidencias: Array.isArray(datosRegistro.incidencias)
+        ? datosRegistro.incidencias
+        : [],
+      fecha: new Date().toLocaleDateString("es-ES"),
+      timestamp: new Date(),
+    });
+    res.status(200).json({
+      message: "Registro de control de tiempos guardado en la numbe ",
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

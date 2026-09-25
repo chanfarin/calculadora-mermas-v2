@@ -148,6 +148,55 @@
 
     </div>
 
+
+    <!-- SECCIÓN 4: CONTROL DE TIEMPOS E INCIDENCIAS DE OPERARIOS -->
+<div class="tiempos-panel" style="background: #fffdf5; border: 1px solid #fef08a; padding: 15px; border-radius: 8px; margin-top: 25px; margin-bottom: 25px;">
+    <h3 style="margin-top: 0; color: #a16207; font-size: 1.2em; border-bottom: 2px solid #fef08a; padding-bottom: 6px;">⏱️ Registro de Tiempos e Incidencias en Planta</h3>
+    
+    <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+        <div style="flex: 1;">
+            <label for="operarioNombre" style="font-size: 0.85em; font-weight: bold; color: #713f12;">Nombre Operario / Línea:</label>
+            <input type="text" id="operarioNombre" placeholder="Ej. Línea 1 - Juan" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;">
+        </div>
+        <div style="flex: 1;">
+            <label for="operarioTarea" style="font-size: 0.85em; font-weight: bold; color: #713f12;">Tarea / Proceso:</label>
+            <select id="operarioTarea" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff;">
+                <option value="Fileteado">Fileteado / Corte</option>
+                <option value="Congelacion">Congelación Nitrógeno</option>
+                <option value="Envasado">Envasado al Vacío / Bandejas</option>
+                <option value="Etiquetado">Etiquetado y Embalaje</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Botones Táctiles de Control de Tiempo -->
+    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+        <button type="button" id="btnIniciarTarea" style="flex: 1; background: #15803d; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold;">▶️ Iniciar Tarea</button>
+        <button type="button" id="btnFinalizarTarea" style="flex: 1; background: #b91c1c; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>🏁 Finalizar Tarea</button>
+    </div>
+
+    <!-- Panel de Incidencias en Tiempo Real -->
+    <div id="seccionIncidencias" class="hidden" style="background: #fff; border: 1px solid #e2e8f0; padding: 10px; border-radius: 6px; margin-bottom: 15px;">
+        <label for="textoIncidencia" style="font-size: 0.85em; font-weight: bold; color: #b91c1c;">⚠️ Registrar Incidencia en este Turno:</label>
+        <div style="display: flex; gap: 8px; margin-top: 5px;">
+            <input type="text" id="textoIncidencia" placeholder="Ej. Parada por rotura de film o atasco de cinta" style="flex: 1; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <button type="button" id="btnRegistrarIncidencia" style="background: #ea580c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">Aviso</button>
+        </div>
+        <ul id="listaIncidenciasTurno" style="margin-top: 10px; padding-left: 20px; font-size: 0.85em; color: #475569;"></ul>
+    </div>
+
+    <!-- Estado actual del fichaje -->
+    <div id="estadoFichajeTexto" style="font-size: 0.85em; color: #713f12; font-weight: 600; text-align: center; background: #fef9c3; padding: 6px; border-radius: 4px;">Línea libre. Esperando inicio de tarea...
+        <!-- Añade este botón al final del panel de tiempos en tu index.html -->
+        
+    </div>
+    <button type="button" id="btnExportarJornadaPDF" style="margin-top: 12px; background: #a16207; color: white; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; font-size: 0.95em;">
+        📄 Descargar Último Albarán de Jornada (PDF)
+    </button>
+
+</div>
+
+
     
 </div>
 
