@@ -333,41 +333,17 @@ async function procesarCierreDeJornadaMongoDB() {
   )
     return;
 
-  // 1. CAPTURA PRIORITARIA: Guardamos las referencias de control base
   const modo = document.getElementById("modoCalculo").value;
   const pesoPorCaja =
     parseFloat(document.getElementById("pesoCaja").value) || 0;
 
-  // Creamos una lista temporal para guardar lo que se ha producido hoy antes de borrarlo de la pantalla
-  const produccionDelDiaParaHistorico = [];
-
-  // 2. ACTUALIZACIÓN DE STOCK Y CAPTURA DE PRODUCCIÓN (Fila por Fila)
+  // 1. PRIMERO: Procesamos y actualizamos las existencias de las bandejas/bolsas en MongoDB
   for (const input of document.querySelectorAll(".stock-manana")) {
     const molde = input.getAttribute("data-molde").trim();
     const idSafelink = molde.replace(/\s+/g, "_");
-
-    // Leemos el stock remanente calculado para mañana
     const stockRemanenteReal =
       parseInt(document.getElementById(`quedan_${idSafelink}`).innerText) || 0;
-
-    // Capturamos los kilos que se han acumulado hoy en esta fila específica
-    const inputKilosFila = document.querySelector(
-      `.kilos-dia[data-molde="${molde}"]`,
-    );
-    const kilosDeEstaFila = inputKilosFila
-      ? parseFloat(inputKilosFila.value) || 0
-      : 0;
-
-    // Si esta fila ha tenido kilos de trabajo hoy, la guardamos para procesar su merma en el paso 3
-    if (kilosDeEstaFila > 0) {
-      produccionDelDiaParaHistorico.push({
-        molde: molde,
-        kilos: kilosDeEstaFila,
-      });
-    }
-
     try {
-      // Sincronizamos las existencias fijas en MongoDB y ponemos sus kilos a 0 para mañana
       await fetch(`/api/inventario/${encodeURIComponent(molde)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -380,59 +356,53 @@ async function procesarCierreDeJornadaMongoDB() {
     }
   }
 
-  // 3. 👇 NUEVO BLOQUE MULTIPRODUCTO: Calcula y envía a MongoDB la merma de CADA artículo que haya trabajado hoy
-  if (produccionDelDiaParaHistorico.length > 0) {
-    for (const lote of produccionDelDiaParaHistorico) {
-      // Buscamos en tu base de datos qué producto de la fábrica utiliza este molde de envase
-      let productoAsociado = null;
-      for (const id in listaProductosGlobal) {
-        if (listaProductosGlobal[id].tipoBandeja === lote.molde) {
-          productoAsociado = listaProductosGlobal[id];
-          break;
-        }
-      }
+  // 2. SEGUNDO: Calculamos las mermas basándonos en el PESCADO SELECCIONADO, no en el molde general
+  const idSeleccionado = document.getElementById("producto").value;
+  const productoActivo = listaProductosGlobal[idSeleccionado];
 
-      // Si encontramos el artículo, calculamos su merma y la mandamos a la colección historico_mermas
-      if (productoAsociado) {
-        try {
-          const res = calcularLote(
-            productoAsociado,
-            modo,
-            lote.kilos,
-            pesoPorCaja,
-          );
-          if (res) {
-            const mermasTurnoKg =
-              res.materiaPrimaInicial - res.kilosTotalesPedido;
+  // Buscamos los kilos exactos que el botón azul inyectó hoy para la bandeja de este pescado
+  let kilosProcesadosHoy = 0;
+  if (productoActivo) {
+    const inputKilosFila = document.querySelector(
+      `.kilos-dia[data-molde="${productoActivo.tipoBandeja}"]`,
+    );
+    kilosProcesadosHoy = inputKilosFila
+      ? parseFloat(inputKilosFila.value) || 0
+      : 0;
+  }
 
-            await fetch("/api/historico-mermas", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                producto: productoAsociado.nombre,
-                kilosMermados: mermasTurnoKg,
-              }),
-            });
-          }
-        } catch (errLote) {
-          console.warn(
-            "No se pudo calcular la merma para el molde:",
-            lote.molde,
-            errLote,
-          );
-        }
-      }
-    }
-
-    // Una vez enviados todos los productos de golpe a la nube, refrescamos el gráfico de barras
+  // 3. TERCERO: Si el producto activo ha tenido kilos de trabajo, guardamos su merma independiente en MongoDB
+  if (productoActivo && kilosProcesadosHoy > 0) {
     try {
-      await renderizarPanelGraficoMermas();
-    } catch (errGrafico) {
-      console.warn(errGrafico);
+      const res = calcularLote(
+        productoActivo,
+        modo,
+        kilosProcesadosHoy,
+        pesoPorCaja,
+      );
+      if (res) {
+        const mermasTurnoKg = res.materiaPrimaInicial - res.kilosTotalesPedido;
+
+        await fetch("/api/historico-mermas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            producto: productoActivo.nombre,
+            kilosMermados: mermasTurnoKg,
+          }),
+        });
+
+        await renderizarPanelGraficoMermas();
+      }
+    } catch (errLote) {
+      console.warn(
+        "No se pudo guardar el histórico del producto activo:",
+        errLote,
+      );
     }
   }
 
-  // 4. LIMPIEZA VISUAL ABSOLUTA: Se ejecuta siempre al final para dejar la pantalla lista para mañana
+  // 4. CUARTO: Limpieza visual absoluta de la pantalla de cara al día siguiente
   document.getElementById("valorProduccion").value = "";
   document.querySelectorAll(".kilos-dia").forEach((input) => {
     input.value = "0";
@@ -440,7 +410,7 @@ async function procesarCierreDeJornadaMongoDB() {
 
   await sincronizarProductos();
   alert(
-    "🎉 Turno cerrado con éxito. Se han descontado los stocks y guardado el histórico de mermas de todos los productos en MongoDB.",
+    "🎉 Turno cerrado con éxito. Se han descontado los stocks y guardado el histórico de mermas de forma independiente en MongoDB.",
   );
 }
 
